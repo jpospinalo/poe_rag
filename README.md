@@ -57,3 +57,25 @@ python -m venv .venv
 source .venv/bin/activate  # en Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
+
+## Pipeline básico de datos y ejecución
+
+# 1) Ingesta y normalización (genera data/silver/*.jsonl)
+python -m src.ingest.ingest
+
+# 2) Chunking (genera data/silver/chunked/*.jsonl)
+python -m src.spliter
+
+# 3) Enriquecimiento con Gemini (genera data/gold/*.jsonl)
+python -m src.ingest.enrich
+
+# 4) Construcción/actualización de la colección en Chroma
+python -m src.backend.vectorstore
+
+# 5) Lanzar la interfaz Gradio
+python -m src.frontend.gradio_app
+```
+La aplicación quedará disponible, por defecto, en:
+```bash    
+http://0.0.0.0:7860
+
