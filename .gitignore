@@ -1,0 +1,33 @@
+# 1) Entorno virtual
+.venv/
+venv/
+
+# 2) Cachés y archivos temporales de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 3) Configuración de IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 4) Datos del RAG (no subir PDFs ni artefactos generados)
+data/bronze/
+
+# 5) Configuración sensible / secretos
+.env
+*.pem
+*.key
+*.crt
+
+# 6) Archivos de sistema
+.DS_Store
+Thumbs.db
