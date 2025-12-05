@@ -1,6 +1,6 @@
 {
-  "n_samples": 4,
+  "n_samples": 1,
   "metrics": {
-    "answer_relevancy": 0.4023791029629211
+    "answer_relevancy": 0.9137748153780269
   }
 }
