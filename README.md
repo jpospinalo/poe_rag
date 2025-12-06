@@ -47,9 +47,17 @@ El proyecto combina:
 
 ## Instalación básica
 
+
+
 Clonar el repositorio y crear entorno virtual:
 
 ```bash
+
+sudo apt-get update
+
+sudo apt-get install -y libgl1
+sudo apt-get install -y libglib2.0-0 libsm6 libxrender1 libxext6
+
 git clone https://github.com/jpospinalo/poe_rag.git
 cd poe_rag
 
