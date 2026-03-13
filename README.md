@@ -19,9 +19,9 @@ El proyecto combina:
 
 2. `src/`
    - `ingest/`
-     - `ingest.py`      → carga PDFs, normaliza texto y metadata, genera capa *silver*.
+     - `loaders.py`     → carga PDFs, normaliza texto y metadata, genera capa *silver*.
      - `normalize.py`   → reglas de limpieza y normalización de metadata.
-     - `spliter.py`     → divide documentos en chunks y genera `silver/chunked`.
+     - `splitter.py`    → divide documentos en chunks y genera `silver/chunked`.
      - `enrich.py`      → enriquece chunks con Gemini y genera capa *gold*.
    - `backend/`
      - `vectorstore.py` → construye/actualiza la colección de Chroma a partir de *gold*.
@@ -31,14 +31,14 @@ El proyecto combina:
      - `gradio_app.py`  → interfaz de chat en Gradio.
 
 3. `scripts/`
-   - `ec2_chorma_db.sh`         → instalación y despliegue de ChromaDB en Docker.
+   - `ec2_chroma_db.sh`        → instalación y despliegue de ChromaDB en Docker.
    - `ec2_ollama_embeddings.sh` → instalación de Ollama y descarga de `embeddinggemma`.
 
 ---
 
 ## Requisitos
 
-- Python 3.10+
+- Python 3.12+
 - Docker (para ChromaDB)
 - Ollama (para embeddings y, opcionalmente, reranking)
 - Cuenta y API Key de Google para **Gemini**
@@ -47,7 +47,7 @@ El proyecto combina:
 
 ## Instalación básica
 
-Instalar las siguientes dependecias:
+Instalar las siguientes dependencias:
 
 ```bash
 sudo apt-get update
@@ -55,10 +55,10 @@ sudo apt-get update
 sudo apt-get install -y libgl1
 sudo apt-get install -y libglib2.0-0 libsm6 libxrender1 libxext6
 ```
+
 Clonar el repositorio y crear entorno virtual:
 
 ```bash
-
 git clone https://github.com/jpospinalo/poe_rag.git
 cd poe_rag
 
@@ -66,14 +66,16 @@ python -m venv .venv
 source .venv/bin/activate  # en ubuntu: .venv\bin\activate
 
 pip install -r requirements.txt
+```
 
 ## Pipeline básico de datos y ejecución
 
+```bash
 # 1) Ingesta y normalización (genera data/silver/*.jsonl)
-python -m src.ingest.ingest
+python -m src.ingest.loaders
 
 # 2) Chunking (genera data/silver/chunked/*.jsonl)
-python -m src.spliter
+python -m src.ingest.splitter
 
 # 3) Enriquecimiento con Gemini (genera data/gold/*.jsonl)
 python -m src.ingest.enrich
@@ -84,7 +86,9 @@ python -m src.backend.vectorstore
 # 5) Lanzar la interfaz Gradio
 python -m src.frontend.gradio_app
 ```
-La aplicación quedará disponible, por defecto, en:
-```bash    
-http://0.0.0.0:7860
 
+La aplicación quedará disponible, por defecto, en:
+
+```bash
+http://0.0.0.0:7860
+```

@@ -258,7 +258,7 @@ def enrich_directory(
 
     os.makedirs(gold_dir, exist_ok=True)
 
-    for file_name in os.listdir(silver_chunk_dir):
+    for file_name in sorted(os.listdir(silver_chunk_dir)):
         if not file_name.endswith(".jsonl"):
             continue
 

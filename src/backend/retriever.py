@@ -12,8 +12,9 @@ from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
+
+from .embeddings import OllamaEmbeddings
 
 # ---------------------------------------------------------------------
 # Constantes (ajusta si cambian)
@@ -22,53 +23,12 @@ from langchain_core.retrievers import BaseRetriever
 load_dotenv()
 
 CHROMA_HOST = os.getenv("CHROMA_HOST")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT"))
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME")
-
-# Máquina de EMBEDDINGS (Ollama con embeddinggemma)
-OLLAMA_EMBED_BASE_URL = os.getenv("OLLAMA_EMBED_BASE_URL")
-OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL")
 
 # Máquina de RERANKING (Ollama con llama3.2:3b)
 OLLAMA_RERANK_BASE_URL = os.getenv("OLLAMA_RERANK_BASE_URL")
 OLLAMA_RERANK_MODEL = os.getenv("OLLAMA_RERANK_MODEL")
-
-
-# ---------------------------------------------------------------------
-# Embeddings con Ollama
-# ---------------------------------------------------------------------
-
-class OllamaEmbeddings(Embeddings):
-    """Wrapper de embeddings de Ollama para usar con LangChain."""
-
-    def __init__(
-        self,
-        base_url: str = OLLAMA_EMBED_BASE_URL,
-        model: str = OLLAMA_EMBED_MODEL,
-        timeout: float = 60.0,
-    ) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.model = model
-        self.timeout = timeout
-
-    def _embed_one(self, text: str) -> List[float]:
-        resp = requests.post(
-            f"{self.base_url}/api/embeddings",
-            json={"model": self.model, "prompt": text},
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if "embedding" not in data:
-            raise RuntimeError(f"Respuesta de Ollama sin 'embedding': {data}")
-        return data["embedding"]
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        return [self._embed_one(t) for t in texts]
-
-    def embed_query(self, text: str) -> List[float]:
-        return self._embed_one(text)
-
 
 EMBEDDINGS = OllamaEmbeddings()
 

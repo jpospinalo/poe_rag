@@ -6,6 +6,7 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 import os
+from functools import lru_cache
 from typing import List, Tuple
 
 from dotenv import load_dotenv
@@ -21,22 +22,15 @@ from .retriever import get_ensemble_retriever
 # Configuración
 # ---------------------------------------------------------------------
 
-
 load_dotenv()
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-if not GOOGLE_API_KEY:
-    raise RuntimeError("Falta GOOGLE_API_KEY en el .env")
-
-llm = ChatGoogleGenerativeAI(
-    model=GEMINI_MODEL,
-    api_key=GOOGLE_API_KEY,
-    temperature=0.2,
-    max_output_tokens=2048,
-    convert_system_message_to_human=True
-)
+@lru_cache(maxsize=1)
+def _get_llm() -> ChatGoogleGenerativeAI:
+    return ChatGoogleGenerativeAI(
+        model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+        temperature=0.0,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -91,6 +85,7 @@ def build_rag_chain(k_candidates: int = 8):
     input (str) -> retriever -> docs -> contexto
                  -> PROMPT -> LLM -> texto
     """
+    llm = _get_llm()
     retriever = get_ensemble_retriever(k=k_candidates)
 
     rag_chain = (
@@ -100,7 +95,7 @@ def build_rag_chain(k_candidates: int = 8):
         }
         | PROMPT
         | llm
-        | StrOutputParser()  # convierte AIMessage -> str
+        | StrOutputParser()
     )
     return rag_chain, retriever
 

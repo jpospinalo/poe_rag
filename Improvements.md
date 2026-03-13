@@ -224,7 +224,7 @@ ignore = ["E501"]
 
 ## 3. Bugs críticos a corregir
 
-### 4.1 `TypeError` al leer `CHROMA_PORT` sin valor
+### 3.1 `TypeError` al leer `CHROMA_PORT` sin valor
 
 **Archivos afectados:** `src/backend/vectorstore.py` y `src/backend/retriever.py`
 
@@ -240,7 +240,7 @@ port = int(os.getenv("CHROMA_PORT"))
 port = int(os.getenv("CHROMA_PORT", "8000"))
 ```
 
-### 4.2 `RuntimeError` al importar `generator.py` sin `GOOGLE_API_KEY`
+### 3.2 `RuntimeError` al importar `generator.py` sin `GOOGLE_API_KEY`
 
 **Archivo:** `src/backend/generator.py`
 
@@ -264,7 +264,7 @@ def build_rag_chain(k_candidates: int = 10):
     # ...
 ```
 
-### 4.3 Implementación duplicada de `OllamaEmbeddings`
+### 3.3 Implementación duplicada de `OllamaEmbeddings`
 
 **Archivos:** `src/backend/vectorstore.py` (`OllamaEmbeddingFunction`) y `src/backend/retriever.py` (`OllamaEmbeddings`)
 
@@ -319,7 +319,7 @@ class OllamaEmbeddings(Embeddings):
         return self._client.embed([text])[0]
 ```
 
-### 4.4 Código de depuración en `gradio_app.py`
+### 3.4 Código de depuración en `gradio_app.py`
 
 **Archivo:** `src/frontend/gradio_app.py`
 
@@ -327,7 +327,7 @@ class OllamaEmbeddings(Embeddings):
 
 **Corrección:** Moverlos a un script de utilidades separado en `scripts/`.
 
-### 4.5 Orden de iteración no determinista en `enrich.py`
+### 3.5 Orden de iteración no determinista en `enrich.py`
 
 **Archivo:** `src/ingest/enrich.py`
 
@@ -492,7 +492,7 @@ from src.config import CHROMA_HOST, CHROMA_PORT
 
 ## 7. Testing
 
-### 8.1 Dependencias de desarrollo
+### 7.1 Dependencias de desarrollo
 
 Añadir en `pyproject.toml` (ver sección [2](#2-gestión-de-dependencias-con-uv)):
 
@@ -505,7 +505,7 @@ dev-dependencies = [
 ]
 ```
 
-### 8.2 Estructura de tests
+### 7.2 Estructura de tests
 
 ```
 tests/
@@ -522,7 +522,7 @@ tests/
     └── test_full_pipeline.py ← requiere Chroma, Ollama, Gemini
 ```
 
-### 8.3 Cobertura por módulo
+### 7.3 Cobertura por módulo
 
 | Módulo | Qué probar | Requiere mock |
 |--------|------------|---------------|
@@ -534,7 +534,7 @@ tests/
 | `retriever.py` | RRF fusion, formato de salida de `HybridEnsembleRetriever` | Sí (Chroma, Ollama) |
 | `gradio_app.py` | `format_context`, `format_sources`, `clean_answer` | No |
 
-### 8.4 `conftest.py`
+### 7.4 `conftest.py`
 
 ```python
 # tests/conftest.py
@@ -584,7 +584,7 @@ def tmp_gold_dir(tmp_path: Path) -> Path:
     return gold
 ```
 
-### 8.5 `tests/unit/test_normalize.py`
+### 7.5 `tests/unit/test_normalize.py`
 
 ```python
 # tests/unit/test_normalize.py
@@ -624,7 +624,7 @@ def test_normalize_documents_returns_documents(sample_document):
     assert all(isinstance(d, Document) for d in result)
 ```
 
-### 8.6 `tests/unit/test_splitter.py`
+### 7.6 `tests/unit/test_splitter.py`
 
 ```python
 # tests/unit/test_splitter.py
@@ -652,7 +652,7 @@ def test_chunk_content_not_empty(sample_document):
     assert all(len(c.page_content) > 0 for c in chunks)
 ```
 
-### 8.7 Tests de integración
+### 7.7 Tests de integración
 
 ```python
 # tests/integration/test_full_pipeline.py
@@ -686,7 +686,7 @@ Ejecutar solo tests de integración:
 uv run pytest -m integration
 ```
 
-### 8.8 Comandos de testing
+### 7.8 Comandos de testing
 
 ```bash
 # Todos los tests unitarios
@@ -775,7 +775,7 @@ jobs:
 
 ## 9. Correcciones de documentación
 
-### 10.1 README — Rutas de módulos incorrectas
+### 9.1 README — Rutas de módulos incorrectas
 
 | Actual en README | Correcto | Motivo |
 |------------------|----------|--------|
@@ -783,11 +783,11 @@ jobs:
 | `python -m src.spliter` | `python -m src.ingest.splitter` | Ruta completa y typo corregido |
 | "Python 3.10+" | "Python 3.12+" | `.python-version` y `pyproject.toml` requieren 3.12 |
 
-### 10.2 README — Bloque de código no cerrado
+### 9.2 README — Bloque de código no cerrado
 
 El bloque de código de la sección de instalación no tiene cierre (triple backtick de cierre), lo que hace que los comandos del pipeline aparezcan dentro del bloque de código. Debe añadirse la línea de cierre correspondiente.
 
-### 10.3 `docs/architecture.md`
+### 9.3 `docs/architecture.md`
 
 Crear un diagrama textual del pipeline para facilitar la comprensión del proyecto:
 

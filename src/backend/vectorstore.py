@@ -7,9 +7,9 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import chromadb
-import requests
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from dotenv import load_dotenv
+
+from .embeddings import OllamaEmbeddingFunction
 
 # ---------------------------------------------------------------------
 # Constantes y configuración
@@ -18,51 +18,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CHROMA_HOST = os.getenv("CHROMA_HOST")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT"))
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME")
 
-# Máquina de EMBEDDINGS (Ollama con embeddinggemma)
-OLLAMA_EMBED_BASE_URL = os.getenv("OLLAMA_EMBED_BASE_URL")
-OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL")
-
 GOLD_DIR = "data/gold"
-
-
-# ---------------------------------------------------------------------
-# Embedding function con Ollama
-# ---------------------------------------------------------------------
-
-class OllamaEmbeddingFunction(EmbeddingFunction[Documents]):
-    """
-    Implementación de EmbeddingFunction para Chroma que llama
-    a Ollama en el endpoint /api/embeddings.
-    """
-
-    def __init__(
-        self,
-        base_url: str = OLLAMA_EMBED_BASE_URL,
-        model_name: str = OLLAMA_EMBED_MODEL,
-        timeout: float = 30.0,
-    ) -> None:
-        self.base_url = (base_url or "").rstrip("/")
-        self.model_name = model_name
-        self.timeout = timeout
-
-    def _embed_one(self, text: str) -> List[float]:
-        resp = requests.post(
-            f"{self.base_url}/api/embeddings",
-            json={"model": self.model_name, "prompt": text},
-            timeout=self.timeout,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if "embedding" not in data:
-            raise RuntimeError(f"Respuesta de Ollama sin 'embedding': {data}")
-        return data["embedding"]
-
-    def __call__(self, docs: Documents) -> Embeddings:
-        return [self._embed_one(d) for d in docs]
-
 
 EMBED_FN = OllamaEmbeddingFunction()
 

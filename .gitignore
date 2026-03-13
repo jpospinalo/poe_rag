@@ -19,15 +19,26 @@ build/
 *.swp
 *.swo
 
-# 4) Datos del RAG (no subir PDFs ni artefactos generados)
+# 4) Datos generados por el pipeline
+data/silver/
+data/gold/
+data/bronze/
 
+# 5) Resultados de evaluación (pueden contener datos sensibles)
+evaluation/ragas_eval_dataset.json
+evaluation/ragas_eval_summary.json
 
-# 5) Configuración sensible / secretos
+# 6) Configuración sensible / secretos
 .env
 *.pem
 *.key
 *.crt
 
-# 6) Archivos de sistema
+# 7) Archivos de sistema
 .DS_Store
 Thumbs.db
+
+# 8) Cobertura y testing
+htmlcov/
+.coverage
+coverage.xml

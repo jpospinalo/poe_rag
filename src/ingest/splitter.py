@@ -1,4 +1,4 @@
-# src/spliter.py
+# src/ingest/splitter.py
 
 from __future__ import annotations
 
@@ -35,26 +35,30 @@ SILVER_CHUNKED_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------
 
 def chunk_documents(
+    docs: List[Document] | None = None,
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
-) -> None:
+) -> List[Document]:
     """
-    Genera la capa de documentos fragmentados (chunked) a partir de la capa SILVER.
+    Genera la capa de documentos fragmentados (chunked).
 
-    Flujo:
-      1) Carga todos los documentos completos desde data/silver (.jsonl).
-      2) Aplica chunking con RecursiveCharacterTextSplitter.
-      3) Añade metadatos de chunk (chunk_index, chunk_id) y copia metadatos básicos.
-      4) Guarda los chunks en data/silver/chunked como .jsonl por archivo.
+    Si se pasan *docs* directamente, se usan esos documentos.
+    Si no, se cargan desde data/silver (.jsonl) y se guardan
+    los chunks resultantes en data/silver/chunked.
+
+    Devuelve la lista de chunks generados.
     """
-    existing_silver = list(SILVER_DIR.glob("*.jsonl"))
-    if not existing_silver:
-        print(f"No se encontraron .jsonl en {SILVER_DIR}. Genera primero la capa silver.")
-        return
+    save_to_disk = docs is None
 
-    print(f"Cargando documentos desde {SILVER_DIR}...")
-    docs: List[Document] = load_all_docs_from_dir(SILVER_DIR)
-    print("Total documentos silver (completos):", len(docs))
+    if docs is None:
+        existing_silver = list(SILVER_DIR.glob("*.jsonl"))
+        if not existing_silver:
+            print(f"No se encontraron .jsonl en {SILVER_DIR}. Genera primero la capa silver.")
+            return []
+
+        print(f"Cargando documentos desde {SILVER_DIR}...")
+        docs = load_all_docs_from_dir(SILVER_DIR)
+        print("Total documentos silver (completos):", len(docs))
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -68,19 +72,16 @@ def chunk_documents(
         base_meta = dict(doc.metadata) if doc.metadata else {}
         source = base_meta.get("source") or base_meta.get("file_path") or f"doc_{doc_idx}"
 
-        # Usamos un Document limpio como entrada al splitter
         base_doc = Document(page_content=doc.page_content, metadata=base_meta)
         chunks = splitter.split_documents([base_doc])
 
         for idx, chunk in enumerate(chunks):
             meta = dict(chunk.metadata) if chunk.metadata else {}
 
-            # Asegurar campos base
             meta["source"] = source
             meta.setdefault("title", base_meta.get("title", ""))
             meta.setdefault("author", base_meta.get("author", ""))
 
-            # Metadatos de chunk
             meta["chunk_index"] = idx
             meta["chunk_id"] = f"{source}_chunk_{idx}"
 
@@ -91,9 +92,11 @@ def chunk_documents(
 
     print("Total de chunks generados:", len(all_chunks))
 
-    # Guardar en data/silver/chunked, agrupando por 'source'
-    save_docs_jsonl_per_file(all_chunks, SILVER_CHUNKED_DIR)
-    print(f"Chunks guardados en: {SILVER_CHUNKED_DIR}")
+    if save_to_disk:
+        save_docs_jsonl_per_file(all_chunks, SILVER_CHUNKED_DIR)
+        print(f"Chunks guardados en: {SILVER_CHUNKED_DIR}")
+
+    return all_chunks
 
 
 def main() -> None:
