@@ -6,40 +6,21 @@ Hoja de ruta técnica para llevar el proyecto a un estado de producción profesi
 
 ## Tabla de contenidos
 
-1. [Resumen ejecutivo](#1-resumen-ejecutivo)
-2. [Estructura del proyecto](#2-estructura-del-proyecto)
-3. [Gestión de dependencias con `uv`](#3-gestión-de-dependencias-con-uv)
-4. [Bugs críticos a corregir](#4-bugs-críticos-a-corregir)
-5. [Calidad de código — Linting, formateo y tipos](#5-calidad-de-código--linting-formateo-y-tipos)
-6. [Pre-commit hooks](#6-pre-commit-hooks)
-7. [Configuración centralizada](#7-configuración-centralizada)
-8. [Testing](#8-testing)
-9. [CI/CD con GitHub Actions](#9-cicd-con-github-actions)
-10. [Correcciones de documentación](#10-correcciones-de-documentación)
-11. [Mejoras en `.gitignore` y `.env.example`](#11-mejoras-en-gitignore-y-envexample)
-12. [Makefile](#12-makefile)
-13. [Resumen de prioridades](#13-resumen-de-prioridades)
+1. [Estructura del proyecto](#1-estructura-del-proyecto)
+2. [Gestión de dependencias con `uv`](#2-gestión-de-dependencias-con-uv)
+3. [Bugs críticos a corregir](#3-bugs-críticos-a-corregir)
+4. [Calidad de código — Linting, formateo y tipos](#4-calidad-de-código--linting-formateo-y-tipos)
+5. [Tests con GitHub Actions](#5-tests-con-github-actions)
+6. [Configuración centralizada](#6-configuración-centralizada)
+7. [Testing](#7-testing)
+8. [CI/CD con GitHub Actions](#8-cicd-con-github-actions)
+9. [Correcciones de documentación](#9-correcciones-de-documentación)
+10. [Mejoras en `.gitignore` y `.env.example`](#10-mejoras-en-gitignore-y-envexample)
+11. [Makefile](#11-makefile)
 
 ---
 
-## 1. Resumen ejecutivo
-
-El proyecto implementa correctamente un pipeline RAG medallion (Bronze → Silver → Gold) con retrieval híbrido BM25 + vectorial, reranker y evaluación RAGAS. La arquitectura es sólida. Los problemas son de forma, no de fondo:
-
-| Categoría | Estado actual | Impacto |
-|-----------|---------------|---------|
-| Bugs de producción | 2 crashes garantizados si faltan env vars | Alto |
-| Empaquetado Python | Sin `__init__.py` en ningún paquete | Medio |
-| Testing | Sin ningún test | Medio |
-| Linting / tipos | Sin ruff, mypy ni pre-commit | Medio |
-| CI/CD | Sin workflows de GitHub Actions | Medio |
-| Typos en archivos | `spliter.py`, `ec2_chorma_db.sh` | Bajo |
-| README desactualizado | Rutas de módulos incorrectas | Bajo |
-| Config dispersa | `os.getenv()` repetido en cada módulo | Bajo |
-
----
-
-## 2. Estructura del proyecto
+## 1. Estructura del proyecto
 
 ### Estructura actual
 
@@ -160,7 +141,7 @@ poe_rag/
 
 ---
 
-## 3. Gestión de dependencias con `uv`
+## 2. Gestión de dependencias con `uv`
 
 ### Instalación y uso
 
@@ -219,8 +200,6 @@ dev-dependencies = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.8",
-    "mypy>=1.10",
-    "pre-commit>=3.0",
 ]
 
 [tool.pytest.ini_options]
@@ -239,16 +218,11 @@ target-version = "py312"
 select = ["E", "W", "F", "I", "UP", "B"]
 ignore = ["E501"]
 
-[tool.mypy]
-python_version = "3.12"
-ignore_missing_imports = true
-warn_return_any = true
-warn_unused_ignores = true
 ```
 
 ---
 
-## 4. Bugs críticos a corregir
+## 3. Bugs críticos a corregir
 
 ### 4.1 `TypeError` al leer `CHROMA_PORT` sin valor
 
@@ -351,7 +325,7 @@ class OllamaEmbeddings(Embeddings):
 
 **Problema:** La función `list_models()` y la importación `from google import genai` están definidas fuera de cualquier bloque guard al final del módulo. Son restos de depuración que no deben estar en producción.
 
-**Corrección:** Eliminar `list_models()` y el import `from google import genai` del módulo, o moverlos a un script de utilidades separado en `scripts/`.
+**Corrección:** Moverlos a un script de utilidades separado en `scripts/`.
 
 ### 4.5 Orden de iteración no determinista en `enrich.py`
 
@@ -371,9 +345,9 @@ for file_name in sorted(os.listdir(chunked_dir)):
 
 ---
 
-## 5. Calidad de código — Linting, formateo y tipos
+## 4. Calidad de código — Linting, formateo y tipos
 
-### 5.1 Ruff (linter + formatter)
+### Ruff (linter + formatter)
 
 [Ruff](https://docs.astral.sh/ruff/) reemplaza a `flake8`, `isort` y `black` en una sola herramienta, con rendimiento ~100x superior.
 
@@ -388,63 +362,70 @@ uv run ruff check --fix src/ tests/ evaluation/
 uv run ruff format src/ tests/ evaluation/
 ```
 
-### 5.2 Mypy (type checking estático)
-
-```bash
-uv run mypy src/
-```
-
-Los módulos con mayor deuda de tipos son `retriever.py` (tipos de retorno sin anotar) y `enrich.py` (tipos de los modelos Pydantic usados como dicts).
-
-### 5.3 Configuración en `pyproject.toml`
-
-Ver la sección `[tool.ruff]` y `[tool.mypy]` en el apartado [3. Gestión de dependencias](#3-gestión-de-dependencias-con-uv).
-
 ---
 
-## 6. Pre-commit hooks
+## 5. Tests con GitHub Actions
 
-Automatiza linting y formateo en cada commit para que no se cuele código que no pase los checks.
+Workflow dedicado a ejecutar los tests automáticamente en cada push y pull request. Se separa intencionalmente del workflow de calidad de código (sección 8) para que fallen de forma independiente y el feedback sea más claro.
 
-### Archivo `.pre-commit-config.yaml`
+### `.github/workflows/tests.yml`
 
 ```yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
+name: Tests
 
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-toml
-      - id: check-merge-conflict
-      - id: debug-statements
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [pydantic, langchain-core]
+jobs:
+  unit-tests:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          file: coverage.xml
+          flags: unit
+          fail_ci_if_error: false
+
 ```
 
-### Instalación
+### Notas sobre el workflow
 
-```bash
-uv run pre-commit install
-```
-
-A partir de ese momento, `ruff check`, `ruff format` y `mypy` se ejecutan automáticamente antes de cada `git commit`.
+- Se ejecuta en todos los push y pull requests sobre `main` y `develop`.
+- No requiere ningún servicio externo ni credenciales: los tests unitarios usan mocks para ChromaDB, Ollama y Gemini.
+- El caché de `uv` (`enable-cache: true`) usa el `uv.lock` como clave, por lo que las dependencias solo se reinstalan cuando el lockfile cambia.
+- La cobertura se sube a Codecov solo desde `python-version: 3.12` para evitar reportes duplicados.
 
 ---
 
-## 7. Configuración centralizada
+## 6. Configuración centralizada
 
 ### Problema actual
 
@@ -509,11 +490,11 @@ from src.config import CHROMA_HOST, CHROMA_PORT
 
 ---
 
-## 8. Testing
+## 7. Testing
 
 ### 8.1 Dependencias de desarrollo
 
-Añadir en `pyproject.toml` (ver sección [3](#3-gestión-de-dependencias-con-uv)):
+Añadir en `pyproject.toml` (ver sección [2](#2-gestión-de-dependencias-con-uv)):
 
 ```toml
 [tool.uv]
@@ -521,8 +502,6 @@ dev-dependencies = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.8",
-    "mypy>=1.10",
-    "pre-commit>=3.0",
 ]
 ```
 
@@ -725,7 +704,7 @@ uv run pytest -m integration
 
 ---
 
-## 9. CI/CD con GitHub Actions
+## 8. CI/CD con GitHub Actions
 
 ### `.github/workflows/ci.yml`
 
@@ -794,7 +773,7 @@ jobs:
 
 ---
 
-## 10. Correcciones de documentación
+## 9. Correcciones de documentación
 
 ### 10.1 README — Rutas de módulos incorrectas
 
@@ -836,7 +815,7 @@ respuesta final              ← mostrada en Gradio
 
 ---
 
-## 11. Mejoras en `.gitignore` y `.env.example`
+## 10. Mejoras en `.gitignore` y `.env.example`
 
 ### `.gitignore` — Añadir datos generados
 
@@ -869,7 +848,7 @@ OLLAMA_EVAL_MODEL=mistral
 
 ---
 
-## 12. Makefile
+## 11. Makefile
 
 Un `Makefile` en la raíz permite ejecutar cualquier operación del proyecto con un único comando, sin tener que recordar los flags exactos de cada herramienta.
 
@@ -926,29 +905,3 @@ make pipeline       # ingestar documentos
 make app            # lanzar Gradio
 make help           # ver todos los comandos
 ```
-
----
-
-## 13. Resumen de prioridades
-
-| Prioridad | Acción | Esfuerzo | Impacto |
-|-----------|--------|----------|---------|
-| **Crítica** | Corregir `int(os.getenv("CHROMA_PORT"))` sin default | Muy bajo | Evita crash en producción |
-| **Crítica** | Mover init del LLM fuera del nivel de módulo en `generator.py` | Bajo | Evita crash al importar |
-| **Alta** | Añadir `__init__.py` en todos los paquetes | Muy bajo | Empaquetado Python correcto |
-| **Alta** | Crear `src/config.py` y migrar todos los `os.getenv()` | Medio | Mantenibilidad y seguridad |
-| **Alta** | Añadir `pytest`, `ruff`, `mypy` en `dev-dependencies` y configurarlos en `pyproject.toml` | Bajo | Calidad de código |
-| **Alta** | Escribir tests unitarios para `normalize`, `splitter`, `utils` y `vectorstore.sanitize_metadata` | Medio | Confianza en el código |
-| **Media** | Instalar y configurar pre-commit | Bajo | Consistencia del equipo |
-| **Media** | Renombrar `spliter.py` → `splitter.py` (y actualizar todos los imports) | Bajo | Profesionalidad |
-| **Media** | Renombrar `ec2_chorma_db.sh` → `ec2_chroma_db.sh` | Muy bajo | Profesionalidad |
-| **Media** | Eliminar código de depuración de `gradio_app.py` | Muy bajo | Limpieza |
-| **Media** | Añadir workflow de CI en `.github/workflows/ci.yml` | Bajo | Automatización |
-| **Media** | Añadir variables faltantes a `.env.example` y `.gitignore` | Muy bajo | Documentación correcta |
-| **Media** | Corregir README (rutas de módulos, versión Python, bloque de código) | Muy bajo | Documentación correcta |
-| **Baja** | Extraer `OllamaEmbeddings` duplicado a `src/backend/embeddings.py` | Medio | Principio DRY |
-| **Baja** | Crear `scripts/run_pipeline.sh` | Muy bajo | Comodidad |
-| **Baja** | Crear `Makefile` | Bajo | Experiencia de desarrollo |
-| **Baja** | Escribir `docs/architecture.md` con diagrama del pipeline | Bajo | Documentación |
-| **Baja** | Tests de integración | Alto | Confianza end-to-end |
-| **Baja** | Limpiar `pyproject.toml` para listar solo dependencias directas | Medio | Mantenibilidad |
