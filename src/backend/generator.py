@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 import os
@@ -37,6 +38,7 @@ def _get_llm() -> ChatGoogleGenerativeAI:
 # Utilidades internas
 # ---------------------------------------------------------------------
 
+
 def _build_context_block(docs: List[Document]) -> str:
     """
     Convierte la lista de documentos en un bloque de contexto legible,
@@ -47,27 +49,23 @@ def _build_context_block(docs: List[Document]) -> str:
         meta = d.metadata or {}
         source = meta.get("source", "desconocido")
         chunk_id = meta.get("chunk_id", meta.get("id", f"doc_{i}"))
-        bloque = (
-            f"[doc{i} | source={source} | chunk_id={chunk_id}]\n"
-            f"{d.page_content}"
-        )
+        bloque = f"[doc{i} | source={source} | chunk_id={chunk_id}]\n{d.page_content}"
         bloques.append(bloque)
 
     return "\n\n".join(bloques)
 
 
-PROMPT = ChatPromptTemplate.from_messages(
+BASE_INSTRUCTIONS = (
+    "Eres un asistente experto que responde en español.\n"
+    "Debes contestar la pregunta del usuario usando EXCLUSIVAMENTE "
+    "la información del contexto proporcionado.\n\n"
+    "Si la respuesta no se puede obtener del contexto, indícalo de forma explícita "
+    "y, si es útil, sugiere qué información adicional se requeriría."
+)
+
+PROMPT_WITH_SYSTEM = ChatPromptTemplate.from_messages(
     [
-        (
-            "system",
-            (
-                "Eres un asistente experto que responde en español.\n"
-                "Debes contestar la pregunta del usuario usando EXCLUSIVAMENTE "
-                "la información del contexto proporcionado.\n\n"
-                "Si la respuesta no se puede obtener del contexto, indícalo de forma explícita "
-                "y, si es útil, sugiere qué información adicional se requeriría.\n\n"
-            ),
-        ),
+        ("system", BASE_INSTRUCTIONS),
         (
             "human",
             "CONTEXTO:\n{context}\n\nPREGUNTA:\n{question}\n\nResponde en español.",
@@ -75,10 +73,31 @@ PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
+PROMPT_NO_SYSTEM = ChatPromptTemplate.from_messages(
+    [
+        (
+            "human",
+            "INSTRUCCIONES:\n"
+            "{instructions}\n\n"
+            "CONTEXTO:\n{context}\n\n"
+            "PREGUNTA:\n{question}\n\n"
+            "Responde en español.",
+        )
+    ]
+)
+
+
+def _get_prompt_for_model(model_name: str) -> ChatPromptTemplate:
+    model = (model_name or "").lower()
+    if model.startswith("gemma-"):
+        return PROMPT_NO_SYSTEM.partial(instructions=BASE_INSTRUCTIONS)
+    return PROMPT_WITH_SYSTEM
+
 
 # ---------------------------------------------------------------------
 # Chain RAG
 # ---------------------------------------------------------------------
+
 
 def build_rag_chain(k_candidates: int = 8):
     """
@@ -86,6 +105,7 @@ def build_rag_chain(k_candidates: int = 8):
                  -> PROMPT -> LLM -> texto
     """
     llm = _get_llm()
+    prompt = _get_prompt_for_model(os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
     retriever = get_ensemble_retriever(k=k_candidates)
 
     rag_chain = (
@@ -93,7 +113,7 @@ def build_rag_chain(k_candidates: int = 8):
             "context": retriever | RunnableLambda(_build_context_block),
             "question": RunnablePassthrough(),
         }
-        | PROMPT
+        | prompt
         | llm
         | StrOutputParser()
     )
@@ -135,6 +155,7 @@ def generate_answer(
 # ---------------------------------------------------------------------
 # Ejemplo de uso desde terminal
 # ---------------------------------------------------------------------
+
 
 def demo(question: str = "¿quién era Leonora?") -> None:
     answer, docs = generate_answer(
