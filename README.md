@@ -56,6 +56,19 @@ poe_rag/
 
 ---
 
+## Compatibilidad
+
+Este proyecto está diseñado para ejecutarse en **Linux**. Los scripts de shell (`.sh`) asumen un entorno Linux con `apt-get` y Docker disponibles.
+
+**Windows con WSL** es compatible, pero requiere configuración adicional: los scripts deben convertirse a formato Unix antes de ejecutarse, ya que Git en Windows puede introducir saltos de línea `\r\n` que causan errores:
+
+```bash
+sudo apt-get install -y dos2unix
+dos2unix scripts/*.sh
+```
+
+---
+
 ## Requisitos
 
 - Python 3.12+
