@@ -1,94 +1,174 @@
 # Poe-RAG
 
-Sistema de **Recuperación Aumentada por Generación (RAG)** basado en cuentos de Edgar Allan Poe.  
-El proyecto combina:
+Sistema de **Recuperación Aumentada por Generación (RAG)** sobre cuentos de Edgar Allan Poe.
 
 - Ingesta y normalización de PDFs con **Docling**.
-- Chunking y enriquecimiento semántico de los textos con **Gemini**.
-- Indexación vectorial en **ChromaDB** usando **Ollama + embeddinggemma**.
-- Interfaz de chat en **Gradio** que responde preguntas sobre los cuentos.
+- Chunking y enriquecimiento semántico con **Gemini**.
+- Indexación vectorial en **ChromaDB** usando embeddings de **Ollama**.
+- Interfaz de chat en **Gradio**.
 
 ---
 
-## Arquitectura general
+## Estructura del proyecto
 
-1. `data/`
-   - `silver/`  → documentos normalizados (JSONL por archivo).
-   - `silver/chunked/` → chunks generados para RAG.
-   - `gold/`   → chunks enriquecidos (resumen, keywords, entidades).
-
-2. `src/`
-   - `ingest/`
-     - `loaders.py`     → carga PDFs, normaliza texto y metadata, genera capa *silver*.
-     - `normalize.py`   → reglas de limpieza y normalización de metadata.
-     - `splitter.py`    → divide documentos en chunks y genera `silver/chunked`.
-     - `enrich.py`      → enriquece chunks con Gemini y genera capa *gold*.
-   - `backend/`
-     - `vectorstore.py` → construye/actualiza la colección de Chroma a partir de *gold*.
-     - `retriever.py`   → define retrievers BM25 + vectorial y reranker con Ollama.
-     - `generator.py`   → arma la cadena RAG (retriever + Gemini) y expone `generate_answer`.
-   - `frontend/`
-     - `gradio_app.py`  → interfaz de chat en Gradio.
-
-3. `scripts/`
-   - `ec2_chroma_db.sh`        → instalación y despliegue de ChromaDB en Docker.
-   - `ec2_ollama_embeddings.sh` → instalación de Ollama y descarga de `embeddinggemma`.
+```
+poe_rag/
+├── pyproject.toml
+├── uv.lock
+├── .python-version
+├── .env.example
+├── Makefile
+│
+├── data/
+│   ├── bronze/          ← PDFs originales
+│   ├── silver/          ← documentos normalizados (JSONL por archivo)
+│   │   └── chunked/     ← chunks para RAG
+│   └── gold/            ← chunks enriquecidos (resumen, keywords, entidades)
+│
+├── src/
+│   ├── config.py        ← configuración centralizada desde variables de entorno
+│   ├── ingest/
+│   │   ├── loaders.py   ← carga PDFs y genera capa silver
+│   │   ├── normalize.py ← limpieza y normalización de metadata
+│   │   ├── splitter.py  ← divide documentos en chunks
+│   │   └── enrich.py    ← enriquece chunks con Gemini (capa gold)
+│   ├── backend/
+│   │   ├── embeddings.py   ← cliente Ollama compartido
+│   │   ├── vectorstore.py  ← construye/actualiza la colección en Chroma
+│   │   ├── retriever.py    ← BM25 + vectorial + reranker (RRF)
+│   │   └── generator.py    ← cadena RAG (retriever + Gemini)
+│   └── frontend/
+│       └── gradio_app.py   ← interfaz de chat
+│
+├── scripts/
+│   ├── ec2_chroma_db.sh
+│   ├── ec2_ollama_embeddings.sh
+│   └── run_pipeline.sh     ← pipeline completo de un solo comando
+│
+├── tests/
+│   ├── unit/
+│   └── integration/
+│
+└── evaluation/
+    ├── ragas_eval_gemma.py
+    └── ragas_eval_ollama.py
+```
 
 ---
 
 ## Requisitos
 
 - Python 3.12+
+- [`uv`](https://docs.astral.sh/uv/) (gestor de dependencias y entornos)
 - Docker (para ChromaDB)
-- Ollama (para embeddings y, opcionalmente, reranking)
-- Cuenta y API Key de Google para **Gemini**
+- Ollama (para embeddings y reranking)
+- API Key de Google para **Gemini**
 
 ---
 
-## Instalación básica
-
-Instalar las siguientes dependencias:
+## Instalación
 
 ```bash
-sudo apt-get update
+# Instalar uv (una vez)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-sudo apt-get install -y libgl1
-sudo apt-get install -y libglib2.0-0 libsm6 libxrender1 libxext6
-```
-
-Clonar el repositorio y crear entorno virtual:
-
-```bash
+# Clonar el repositorio
 git clone https://github.com/jpospinalo/poe_rag.git
 cd poe_rag
 
-python -m venv .venv
-source .venv/bin/activate  # en ubuntu: .venv\bin\activate
+# Instalar dependencias (crea .venv automáticamente)
+uv sync
 
-pip install -r requirements.txt
+# Instalar también dependencias de desarrollo
+uv sync --dev
+
+# Copiar y completar las variables de entorno
+cp .env.example .env
 ```
 
-## Pipeline básico de datos y ejecución
+---
+
+## Infraestructura en AWS (previo al pipeline)
+
+Antes de ejecutar el pipeline se necesitan dos instancias EC2 en AWS. Se recomienda asignar una **IP elástica** a cada una para que las variables de entorno sean estables.
+
+### EC2 — ChromaDB
+
+En la instancia destinada a ChromaDB, ejecutar `scripts/ec2_chroma_db.sh`:
 
 ```bash
-# 1) Ingesta y normalización (genera data/silver/*.jsonl)
-python -m src.ingest.loaders
+bash scripts/ec2_chroma_db.sh
+```
 
-# 2) Chunking (genera data/silver/chunked/*.jsonl)
-python -m src.ingest.splitter
+Lanza ChromaDB en Docker con persistencia en `/opt/chroma-data`, expuesto en el puerto `8000`.
 
-# 3) Enriquecimiento con Gemini (genera data/gold/*.jsonl)
-python -m src.ingest.enrich
+### EC2 — Ollama (embeddings)
 
-# 4) Construcción/actualización de la colección en Chroma
-python -m src.backend.vectorstore
+En la instancia destinada a Ollama, ejecutar `scripts/ec2_ollama_embeddings.sh`:
+
+```bash
+bash scripts/ec2_ollama_embeddings.sh
+```
+
+Lanza Ollama en Docker, expuesto en el puerto `11434`, y descarga el modelo `embeddinggemma`.
+
+### Variables de entorno
+
+Una vez levantadas las instancias, configurar `.env` con las IPs elásticas correspondientes:
+
+```dotenv
+# ChromaDB (EC2)
+CHROMA_HOST=<ip-elastica-chroma>
+CHROMA_PORT=8000
+CHROMA_COLLECTION=poe_rag
+
+# Ollama (EC2)
+OLLAMA_BASE_URL=http://<ip-elastica-ollama>:11434
+OLLAMA_EMBEDDING_MODEL=embeddinggemma
+```
+
+> Asegurarse de que los grupos de seguridad de cada instancia permiten tráfico entrante en los puertos `8000` (Chroma) y `11434` (Ollama) desde la IP de la máquina que ejecuta el pipeline.
+
+---
+
+## Pipeline
+
+```bash
+# 1) Ingesta y normalización → data/silver/
+uv run python -m src.ingest.loaders
+
+# 2) Chunking → data/silver/chunked/
+uv run python -m src.ingest.splitter
+
+# 3) Enriquecimiento con Gemini → data/gold/
+uv run python -m src.ingest.enrich
+
+# 4) Indexar en ChromaDB
+uv run python -m src.backend.vectorstore
 
 # 5) Lanzar la interfaz Gradio
-python -m src.frontend.gradio_app
+uv run python -m src.frontend.gradio_app
 ```
 
-La aplicación quedará disponible, por defecto, en:
+O ejecutar el pipeline completo:
 
 ```bash
-http://0.0.0.0:7860
+bash scripts/run_pipeline.sh
+```
+
+La interfaz queda disponible en `http://0.0.0.0:7860`.
+
+---
+
+## Comandos útiles (Makefile)
+
+```bash
+make install        # instalar dependencias
+make lint           # verificar estilo con ruff
+make format         # formatear código
+make test           # tests unitarios
+make test-cov       # tests + cobertura
+make pipeline       # ingestar documentos
+make app            # lanzar Gradio
+make help           # ver todos los comandos
 ```
